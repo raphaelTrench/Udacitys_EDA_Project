@@ -1,0 +1,643 @@
+Google Play Store Download Analysis by Raphael Trench
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using
+# in your analysis in this code chunk.
+# Notice that the parameter "echo" was set to FALSE for this code chunk.
+# This prevents the code from displaying in the knitted HTML output.
+# You should set echo=FALSE for all code chunks in your file.
+library(ggplot2)
+library(tidyr)
+library(dplyr)
+library(psych)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+df <- read.csv('googleplaystore.csv', sep = ',')
+```
+<br/><br/>
+
+# Univariate Plots Section
+<br/><br/><br/>
+
+## Category
+```{r echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots}
+ggplot(aes(x = Category), data = df) +
+  geom_histogram(stat = 'Count', fill = I('#099DD9'), color = 'black') +
+  coord_flip()
+```
+
+It seems that most apps fall under the categories 'Family','Game' or 'Tools'.
+
+Lastly, it seems there is a single app in the category named '1.9', which seems to be a mistake. Because of that this app will be not be included in the analysis from now on.
+
+## Rating
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Removing garbage data
+df <- subset(df, Category != '1.9')
+
+ggplot(aes(x = Rating), data = df) +
+  geom_histogram(stat = 'Count', fill = I('#099DD9'), color = 'black')
+
+summary(df$Rating)
+```
+
+The distribution for rating is positively skewed, which means most apps seem to have good ratings. The majority of app ratings also seem to be in between 4 and 5 stars.
+
+Interestingly, the previously removed app from the '1.9' category had a rating of 19 stars, which is obviously wrong, since the maximum is 5. This confirms that this specific observation was garbage data and would corrupt the analysis.
+
+## Reviews
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Transforming Reviews to a numeric type variable
+df$Reviews <- as.numeric(df$Reviews)
+
+ggplot(aes(x = Reviews), data = df) +
+  geom_histogram(bins = 100, fill = I('#099DD9'), color = 'black')
+
+summary(df$Reviews)
+```
+
+Understandably, most apps have a low number reviews. Other than that, there doesnt seem to be any particular trend to be observed.
+
+The maximum amount of reviews is 6002 and the mean is 2744, which is close to the median of 2747.
+
+## Size
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# First removing the letters M and k from Size, 
+# and then transforming in the values to numeric, normalizing them to Megabytes.
+size_mb <- df[grep('M', df$Size),]$Size
+size_mb <- gsub('M', '', size_mb)
+size_mb <- as.numeric(size_mb)
+
+size_kb <- df[grep('k', df$Size),]$Size
+size_kb <- gsub('k', '', size_kb)
+size_kb <- as.numeric(size_kb)/1000
+
+df$Size_in_megabytes = NA
+df[grep('k', df$Size),]$Size_in_megabytes <- size_kb
+df[grep('M', df$Size),]$Size_in_megabytes <- size_mb
+
+ggplot(aes(x = Size_in_megabytes),data = df) +
+  geom_histogram(bins = 100, fill = I('#099DD9'), color = 'black') +
+  scale_x_continuous(breaks = seq(0, 100, 5))
+
+summary(df$Size_in_megabytes)
+cat('Number of Apps with device depandent size:', 
+    length(df[df$Size == "Varies with device", ]))
+```
+
+The plot above shows that most of the apps are on the lighter side, with the majority having less than 15Mb in size.
+
+Some app size's are device dependant, but they are very few in number.
+
+
+## Installs
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Ordering the categorical values of Installs for better plotting
+
+df$Installs <- factor(df$Installs, levels = c('0','0+','1+','5+','10+','50+',
+                                              '100+','500+','1,000+',
+                                              '5,000+','10,000+','50,000+',
+                                              '100,000+','500,000+',
+                                              '1,000,000+', '5,000,000+',
+                                              '10,000,000+', '50,000,000+', 
+                                              '100,000,000+', '500,000,000+',
+                                              '1,000,000,000+'))
+
+ggplot(aes(x = Installs),data = df[df$Installs != '0' &
+                                     df$Installs != '0+' &
+                                     df$Installs != '1+',]) +
+  geom_histogram(stat = 'count', bins = 100, fill = I('#099DD9'), 
+                 color = 'black') +
+  coord_flip() +  scale_y_continuous(breaks = seq(0, 2000, 100))
+```
+
+The distribution for installations doesnt't seem to follow any particular trend, as the range of number of apps for each category of Installs varies a great deal.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Installs), data = subset(df, Rating == 5)) +
+  geom_histogram(stat = 'Count', fill = I('#099DD9'), color = 'black') +
+  coord_flip() +
+  ggtitle('Number of installations of apps with max rating')
+
+ggplot(aes(x = Installs), data = subset(df, Rating >= 4.5)) +
+  geom_histogram(stat = 'Count', fill = I('#099DD9'), color = 'black') +
+  coord_flip() +
+  ggtitle('Number of installations of apps with rating >= 4.5')
+```
+
+Are apps with great ratings downloaded more?
+
+The first plot not only shows that there are few apps with a perfect rating of 5, but also that those apps dont have a great number of installations.
+
+One could consider the possibility that these apps are newer, and because of that dont have a great number of downloads. Not only that, but since the rating is actually a mean of ratings, if a single person voted for a rating below 5, the rating would decrease. The more people that do download the app, the greater the odds are that this could happen.
+
+The second plot shows the installations of apps with a rating greater or equal than 4.5, which is the category where most apps fall under, as observed in the Ratings section.
+
+Though more apps are considered in this plot, as opposed to what one could believe, having a good rating does not necessarily mean the app will be within the most downloaded, as the number of apps for every category still varies a lot.
+
+
+
+## Type
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Type),data = subset(df, (Type != 'NaN'))) +
+  geom_histogram(stat = 'count', bins = 100, fill = I('#099DD9'), color = 'black') + 
+  scale_y_continuous(breaks = seq(0, 10000, 1000))
+```
+
+The plot above demonstrates that at least in this dataset, the number of free apps is overwhelmingly bigger than the number of paid apps.
+
+This raises an interesting question: are paid apps less downloaded than free ones?
+This question will be more throughly explored in the bivariate section.
+
+## Price
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Remove $ from prices and make them numeric
+df$Price <- as.numeric(sub("\\$", "", df$Price))
+
+ggplot(aes(x = Price), data = (subset(df, Type == 'Paid'))) +
+  geom_histogram(bins = 100, fill = I('#099DD9'), color = 'black') +
+  scale_x_continuous(breaks = seq(0.99, 400, 40)) +
+  scale_y_continuous(breaks = seq(0, 400, 20))
+
+summary(subset(df, Type == 'Paid')$Price)
+
+ggplot(aes(x = Price), data = (subset(df, Type == 'Paid'))) +
+  geom_histogram(bins = 20, fill = I('#099DD9'), color = 'black') +
+  scale_x_continuous(breaks = seq(0.99, 20, 2), limits = c(0.99, 20)) +
+  scale_y_continuous(breaks = seq(0, 400, 20))
+
+summary(subset(df, (Type == 'Paid') & (Price <= 20))$Price)
+```
+
+Curiously there are some apps that are priced 400 dollars, which is most likely a mistake. There is also a very small number of apps which are priced over 20 dollars.
+
+On the second histogram, only apps which have a price of 20 or less dollars are plotted, which seems to be the range of where most apps are in.
+
+Most apps have lower prices, as the distribution is negatively skewed.
+
+## Content Rating
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Content.Rating), data = df) +
+  geom_histogram(stat='count', bins = 100, fill = I('#099DD9'),color = 'black')
+```
+
+The majority of apps are rated for Everyone, by a huge difference.
+
+Of the age specific categories, most apps are rated for teens, and very few are for adults.
+
+## Android Version
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Android.Ver), data = subset(df[grep('up', df$Android.Ver),], Android.Ver != 'NaN')) +
+  geom_histogram(stat='count', fill = I('#099DD9'), color = 'black') + coord_flip()
+```
+
+Excluding the apps for which the minimum Android version varies with the device, there are very few apps which require a version above 5.0, and similarly, below 2.1.
+
+With that in mind, most apps have a minimum required Android version ranging from 4.0 to 4.1.
+
+It is possible to infer some information from this: most apps could be in the 'middle' range of versions because there are less users with older phones and very new phones as well.
+
+## Genres
+```{r echo=FALSE, message=FALSE, fig.height=10, warning=FALSE}
+# Splitting the categorical value Genres into two new columns, Genre1 and Genre2
+df$Genre1 <- data.frame(do.call('rbind', strsplit(as.character(df$Genres), ';', fixed = TRUE)))$X1
+
+df$Genre2 <- data.frame(do.call('rbind', strsplit(as.character(df$Genres), ';', fixed = TRUE)))$X2
+
+ggplot(aes(x = Genre1), data = df) +
+  geom_histogram(stat='count', fill = I('#099DD9'),color = 'black') + 
+  coord_flip() +
+  theme(axis.text.y = element_text(size = 15),
+        plot.title = element_text(size = 40, face = "bold")) +
+  ggtitle('Genre 1') +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(aes(x = Genre2), data = df) +
+  geom_histogram(stat ='count', fill = I('#099DD9'),color = 'black') + 
+  coord_flip() +
+  theme(axis.text.y = element_text(size = 15),
+        plot.title = element_text(size = 40, face = "bold")) +
+  ggtitle('Genre 2') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Each app in the dataset has up to 2 Genres. To make visualization and analysis on this variable simpler and easier, I have separeted it into 2 variables, Genre1 and Genre2.
+
+Both genres seem to follow similar distributions, with the categories 'tools','entertainment','education','medical' and 'business' possessing the most apps.
+
+### Other Variables
+
+The variables Current.Ver and Last.Updated will not be analysed due to their great number of unique values and lack of relevance.
+
+</br>
+
+# Univariate Analysis
+
+### What is the structure of your dataset?
+The dataset consists of 10841 observations and 13 variables.
+
+The variables Category,Type,Installs,Content.Rating,Genres and Android.Ver are categorical.
+
+Some notable observations:
+  - Most apps require a minimum Android Version between 4.0 and 4.1
+  - There doesn't seem to be a linear trend between rating and number of installations
+  - Most apps have a high rating, with the mean rating being 4.192 and its median being 4.3.
+  - The majority of apps is free to download.
+
+### What is/are the main feature(s) of interest in your dataset?
+
+The main feature of interest is Installs, which is how many people have downloaded the app.
+
+Though there are way more factors that can impact how famous an app is (such as marketing campaigns for example), I would like to explore if there is a trend between the most downloaded apps.
+
+### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+I believe that features such as Price, Category and Genres can probably help find the trend im looking for.
+
+Another feature that may help on estabilishing if an app is popular is the number of Reviews it has.
+
+### Did you create any new variables from existing variables in the dataset?
+
+I did create new variables, tho they do not really express any new information, as they were created with the purpose normalizing or cleaning data,to make analysis possible.
+
+These variables are:
+  -Genres1 and Genres2, which were created as the variable Genres had combinations of up to 2 differente genres, which would make visualisation hard.
+  -Size_in_Megabytes, as the original variable Size was not numeric, I had to remove the letters which indicated data size (M for Megabytes for example) and convert all sizes to Megabytes.
+
+
+### Of the features you investigated, were there any unusual distributions? Did you perform any operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+I don't believe that there were any unusual distributions.
+
+As mentioned above, I had to make some operations to tidy and adjust data. Alongside the previously mentioned new variables, I also modified the variable Price, as it was not numeric before and I had to remove the '$' symbol.
+
+I performed these operations to make analysis of these variables simpler,easier and most important, possible.
+
+# Bivariate Plots Section
+```{r echo=FALSE, message=FALSE, warning=FALSE, Bivariate_Plots}
+# REmoving varibles which ill not be analyzed from the dataset
+df$Current.Ver <- NULL
+df$Last.Updated <- NULL
+```
+
+## Relationships of Installs with other variables
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Even if by nature, the number of installs an app has is continuous and numeric, in this dataset its categorical.
+# Because of this, we must remove the ',' characters and convert it to numeric.
+numericInstalls <- (sub("(\\,)","", df$Installs))
+numericInstalls <- (sub("(\\,)","", numericInstalls))
+numericInstalls <- as.numeric(sub("(\\+)","", numericInstalls))
+
+df$Installs <- numericInstalls
+
+ggplot(aes(x = Rating,y = Installs, colour = Rating), data = df) +
+  geom_point(alpha = 1/4) +
+  geom_vline(aes(xintercept = 3.5), colour = "red", linetype = 'dashed') +
+  theme(legend.position="none") +
+  ggtitle("Rating X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+Just like in the previous analysis of Installs, it is possible to observe that having a high rating will not imply in having a great number of installations. However now that both variables are being analysed against eachother, one can clearly see that of the most downloaded apps, almost all of them have a rating of at least around 3.5.
+
+Lastly, of the most downloaded apps overall, all of them have a minimum rating around 4.
+
+To sum up, though not all apps with a good rating are between the most downloaded, all apps between the most downloaded have good ratings.
+
+```{r echo=FALSE, message=FALSE,fig.height=10, warning=FALSE}
+ggplot(aes(x = Genre1, y = Installs, colour = Genre1),data = df) +
+  geom_line(size = 3) + coord_flip() + theme(legend.position = "none") +
+  ggtitle("Genre1 X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(aes(x = Genre2, y = Installs, colour = Genre2),data = df) +
+  geom_line(size = 3) + coord_flip() + theme(legend.position = "none") +
+  ggtitle("Genre2 X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+With these plots, it becomes way more intuitive to see just which genres the most downloaded apps have, as the variance between the few and most installed is apparent.
+
+The most famous genres in the app store are: Video Players and Editors, Action, Casual, Communication, Health and Fitness, News and Magazines, Productivity, Social and Tools.
+
+It is very insightful to learn how much famous some genres are in comparison to most, as with this kind of knowledge it is possible to begin determining the overall trend of the most downloaded apps.
+
+Lastly, since both genres seem to not show much difference between plots, to avoid further visual pollution, from now on I will only take into account the first genre, as not all apps possess a second one.
+
+```{r echo=FALSE, message=FALSE,fig.height=7, warning=FALSE}
+by(df$Installs, df$Genre1, summary)
+```
+
+```{r echo=FALSE, message=FALSE,fig.height=7, warning=FALSE}
+ggplot(aes(x = Category, y = Installs, colour = Category), data = df) +
+  geom_line(size = 3) + coord_flip() + theme(legend.position = "none") +
+  ggtitle("Category X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+by(df$Installs,df$Category,summary)
+```
+
+Fortunately, again it is possible to see noticeable difference between number of installations per category, which further helps identifying a trend.
+
+Interestingly enough, some categories have the same name as a number of genres, mainly the ones that are most famous. This reinforces the idea that these genres/categories really are the ones in which consumers are the most interested in.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Reviews, y = Installs), data = df) +
+  geom_point(size = 2, alpha = 1/15) + theme(legend.position = "none") +
+  ggtitle("Number of Reviews X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+From this plot, it doesn't seem like the number of reviews in an app is actually an important variable, as for all 'categories' of installations, the range of the number of reviews varies far too much.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Size_in_megabytes, y = Installs), data = df) +
+  geom_point(size = 2, alpha = 1/15) + theme(legend.position = "none") +
+  ggtitle("Size X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Just like in the previous plot, there isn't much information to be gained from this one, as there is not really any range of size value that all or most of the most downloaded apps have.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Type,y = Installs, color = Type),
+       data = subset(df, Type != 'NaN')) +
+  geom_point(size = 2, alpha = 1/5) + theme(legend.position = "none") +
+  ggtitle("Type X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(aes(x = Type,y = Installs, color = Type),
+       data = subset(df, Type != 'NaN')) +
+  geom_boxplot(size = 1, alpha = 1/5) + theme(legend.position = "none") +
+  ylim(0,1000000) +
+  ggtitle("Type X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+by(df$Installs,df$Type,summary)
+```
+
+Both plots show that free apps are downloaded more, as the number of installs for paid apps stays at lower values.
+
+The second plot is actually zoomed in on the lower values, limiting the y axis at 1000000.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Price, y = Installs), 
+       data = subset(df, Price > 0 & Price < 30)) +
+  geom_point(size = 2, alpha = 1/5) + theme(legend.position = "none") +
+  ggtitle("Price X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+From the paid apps, most apps have a price below 10 dollars. Also, only apps that cost less than around 7 dollars manage to reach a number of installs greater than the lower values, which most apps fall in.
+
+If an app developer does decide to make their app paid, this kind of information could help on princing it properly.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Content.Rating, y = Installs, color = Content.Rating),
+       data = subset(df, Content.Rating != 'NaN')) +
+  geom_point(size = 2, alpha = 1/5) + theme(legend.position = "none") +
+  ggtitle("Content Rating X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+ggplot(aes(x = Content.Rating, y = Installs, color = Content.Rating),
+       data = subset(df, Content.Rating != 'NaN')) +
+  geom_boxplot(size = 2, alpha = 1/5) +
+  ylim(0,1000000) +
+  theme(legend.position = "none") +
+  ggtitle("Content Rating X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+It seems that apps which are rated for adults or unrated aren't numerous in the dataset, and stay at lower values of installs. In contrast however, all the other categories for content rating do get past the range of lower values for installations, being able to also reach the highest values overall.
+
+The second plot is limiting the y axis at 1000000, and with it we can observe that for lower values, apps rated for adults only have a minimum number of installations higher than the other categories, and thats also true for its median.
+
+In the zoomed in boxplot, one can also see that apps rated for everyone seem to have less installs than most of the other categories, while apps from the content rating categories Everyone 10+, MAture 17+ and Teen seem to have a median close to eachother and reach around the same maximum values too.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Android.Ver, y = Installs, color = Android.Ver), 
+       data = subset(df[grep('up', df$Android.Ver),], Android.Ver != 'NaN')) +
+  geom_point(size = 2, alpha = 1/5) + coord_flip() +
+  theme(legend.position = "none") +
+  ggtitle("Android Version X Installs") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Lastly, there are app installations for apps with minimum requirements for all Android Versions, but for greater numbers of installs, only apps ranging from 2.0.1 to 7.1, with the most downloaded apps being in the versions between 4.0 and 5.0.
+
+## Other variables
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Category,y = Rating, colour = Category), data = df) +
+  geom_point(size = 2, alpha = 1/10) + coord_flip() +
+  theme(legend.position = "none") +
+  ggtitle("Rating X Category") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Again, most apps fall in the rating range between 3 and 5, but no category in particular demonstrates having a better overall rating than others. I wonder if the same happens with genre?
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Genre1, y = Rating, colour = Genre1), data = df) +
+  geom_point(size = 2, alpha = 1/10) + coord_flip() + 
+  theme(legend.position = "none") +
+  ggtitle("Rating X Genre1") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Unsurprisingly, the same does seem to happen when analyzing rating by genres: regardless of genre, they all seem to have their ratings concentrated between 3 and 5.
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+Only apps with relatively good ratings (greater than or equal 3.5) have higher than average values for number of installations. Of those, only apps with ratings greater than or equal than 4 are in the highest tier of number of installations.
+
+Apps of the genres Video Players and Editors, Action, Casual, Communication, Health and Fitness, News and Magazines, Productivity, Social and Tools are more downloaded.
+
+Similarly, the most favoured categories are: Video Players, Tools, Social, Productivity, News and Magazines, Health and Fitness, Game, Family, Communication.
+
+Both the number of reviews and size of an app did not show to have any correlation with how many installs an app has, which indicates that customers don't pay much attention to this kind of information.
+
+Only free apps were able top reach higher values of installations than the overall average.
+
+From the paid apps, the higher values of installations were only reached by apps with a price equal or below 7 dollars.
+
+Apps that are unrated, or rated only for adults are the least installed overall.
+
+Apps with a minimum required version ranging from 2.0.1 to 7.1 reach higher values of installs, but only apps with minimum version between 4.0 and 5.0 have the highest value of installs.
+
+### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+I analyzed the relationship of ratings with genre and category, and did not really find a interesting relationship between them.
+
+### What was the strongest relationship you found?
+
+Due to almost all variables being originally categorical, especially the main feature of interest, I did not analyze the correlation values between them.
+
+
+# Multivariate Plots Section
+
+```{r echo=FALSE, Multivariate_Plots, fig.height=9}
+ggplot(aes(x = Price, y = Installs, colour = Category), 
+       data = subset(df, Price > 0 & Price < 10)) +
+  geom_point(size = 2, alpha = 1/5) + facet_wrap(~Category, ncol = 3) + 
+  theme(legend.position = "none")
+```
+
+The most downlaoded apps, from the paid ones, were from the categories Game and Family.
+
+Most paid apps, regardless of category, have prices below 5 dollars. Nevertheless, the most downloaded apps from the Family category were more expensive than that.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=9}
+ggplot(aes(x = Price,y = Installs,colour = Genre1),
+       data = subset(df, Price > 0 & Price <10)) +
+  geom_point(size = 2, alpha = 1/5) + facet_wrap(~Genre1, ncol = 3) +
+  theme(legend.position = "none")
+```
+
+Maybe because there are too many categories, but when the same plot is created but with genre instead, it does not seem to offer any relevant information.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=9}
+ggplot(aes(x = Rating, y = Installs, colour = Category), data = df) +
+  geom_point(size = 2, alpha = 1/5) + geom_vline(xintercept = 4, colour = 'red',
+                                                 linetype = 'dashed') + 
+  geom_vline(xintercept = 5, colour = 'red',linetype = 'dashed') +
+  facet_wrap(~Category, ncol = 3) + theme(legend.position = "none")
+```
+
+Are the most favoured apps, namely the ones with the highest rating (between 4 and 5) and number of installs, more numerable in any specific category?
+
+It is definitely possible to see some categories which have more favoured apps, with them being Productivity, Tools, Game, News and Magazines, Family and Communication.
+
+Again, lets see how plotting the same thing but with genres results in.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=11}
+ggplot(aes(x = Rating,y = Installs, colour = Genre1), data = df) +
+  geom_point(size = 2, alpha = 1/5) + geom_vline(xintercept = 4, colour = 'red',
+                                                 linetype = 'dashed') + 
+  geom_vline(xintercept = 5, colour = 'red', linetype = 'dashed') +
+  facet_wrap(~Genre1, ncol = 3) + theme(legend.position = "none")
+```
+
+Turns out the same happens when analyzing genres. The genres with favoured apps are: Tools, Productivity, Communication, Casual, Action, and News and Magazines.
+
+Interestingly, some of those genres have the same name of some of the most favoured categories, which further demonstrates that apps with these particular themes might be more prone to being successful.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(aes(x = Rating,y = Installs, colour = Content.Rating), data = df) +
+  geom_point(size = 2, alpha = 1/5) + geom_vline(xintercept = 4, colour = 'red',
+                                                 linetype = 'dashed') + 
+  geom_vline(xintercept = 5, colour = 'red', linetype = 'dashed') +
+  facet_wrap(~Content.Rating, ncol = 3) + theme(legend.position = "none") 
+```
+
+One can clearly see that there are more favoured apps that are rated for Everyone, followed by apps rated for teens.
+
+Even if the Everyone content rating has more favoured apps though, it is also the category with most apps having ratings below 3, which could be considered poor ratings.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=11}
+ggplot(aes(x = Rating, y = Installs, colour = Android.Ver),
+       data = subset(df[grep('up', df$Android.Ver),], Android.Ver != 'NaN')) +
+  geom_point(size = 2, alpha = 1/5) + geom_vline(xintercept = 4, colour = 'red',
+                                                 linetype='dashed') + 
+  geom_vline(xintercept = 5, colour = 'red', linetype = 'dashed') +
+  facet_wrap(~Android.Ver, ncol = 3) + theme(legend.position = "none")
+```
+
+The plot above doesn't give us any new information, since we already learned from the previous sections that the most downloaded apps have a minimum android version requirement between 4.0 and 5.0.
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+Paid apps belonging to Game and Family categories are more succesful.
+
+We can narrow down the categories which the most sucessful apps, namely apps with a high rating and highest number of installs, belong to: Productivity, Tools, Game, News and Magazines, Family and Communication.
+
+The same can be done for genres, and interestingly some genres have the same names as some categories: Tools, Productivity, Communication, Casual, Action, and News and Magazines.
+
+When analyzing apps by content rating, all types of content rating have the majority of their numerical ratings concentrated on values equal or greater than 3, save for apps rated for Everyone, which have their ratings ditributed between 1 and 5.
+
+From all content rating categories, the Everyone category had the most favoured apps, followed by the Teen category.
+
+### Were there any interesting or surprising interactions between features?
+Though there weren't any surprising relationship between the features analyzed, it was very interesting to narrow down the pattern which the most successful apps followed.
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_One}
+ggplot(aes(x = Rating), data = df) +
+  geom_histogram(stat = 'Count', fill = I('#099DD9'), color = 'black') +
+  ggtitle('Distribution of Rating') +
+  ylab('Number of Apps') + xlab('App Rating [1-5]') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Description One
+
+The distribution for Rating is positively skewed, showing that there are very few apps with bad ratings overall.
+
+The distribution is also centered at around 4.5.
+
+### Plot Two
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Two}
+ggplot(aes(x = Category, y = Installs,colour = Category), data = df) +
+  geom_line(size = 3) + coord_flip() + theme(legend.position = "none") +
+  ggtitle("Maximum value of Installs per Category") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Description Two
+
+Apps from some category clearly reach a maximum number of installations overwhelmingly greater than others.
+
+These categories are: Productivity, Tools, Game, News and Magazines, Family and Communication.
+
+### Plot Three
+```{r echo=FALSE, message=FALSE, warning=FALSE, Plot_Three}
+ggplot(aes(x = Rating,y = Installs,colour = Content.Rating), data = df) +
+  geom_point(size = 2, alpha = 1/5) + geom_vline(xintercept = 4, colour = 'red',
+                                                 linetype = 'dashed') + 
+  geom_vline(xintercept = 5 ,colour = 'red', linetype = 'dashed') +
+  facet_wrap(~Content.Rating, ncol = 3) + theme(legend.position = "none") +
+  xlab('Rating[1-5]') +
+  ggtitle('Installs x Rating by Content Rating') +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Description Three
+
+The plot shows for each type of content rating, the relationship between rating and the number of installs, bringing attention to ratings between 4 and 5.
+
+Unrated and Adults only rated apps are less present in the dataset, and seem to have good ratings but not a high number of installationss
+
+From the rest of the content rating categories, all of them have the majority of their app ratings equal or above 3, with the exception of the Everyone category.
+
+Lastly, the Everyone and Teen rating categories have the most apps whith both a good rating and high number of installations.
+
+------
+
+# Reflection
+
+The dataset that was analyzed had almost 11,000 observations with 13 different features.
+
+I chose this dataset instead of the curated ones mainly because I had already worked with most of them during other Udacity courses, and I also wanted to explore something that is more interesting to me and was more 'realistic', meaning that came from the 'real world' and was messy.
+
+It was good that I chose to not work with already clean data, as while I was working with this dataset, I learned alot about manipulating datasets using R.
+
+A thing that troubled me initially was that the dataset is heavily categorical, and that includes the main feature of interest, Installs. That and the fact that most variables had a great number of unique categories, had me both putting a little bit more effort in creating plots that would best express the information and manipulating these variables. One of the biggest issues was that, since there are so many categories and a greate difference between the value of Installs, creating boxplots would result in pure visual pollution.
+
+Overall I believe I was successful in trying to narrow down a pattern that the most successful apps follow, and even though obviously there are way more variables that aren't taken into account in this dataset, such as simple things like app theme, quality, marketing, this is already good information to keep in mind should I ever choose to try my hand at developing an app.
+
+Obviously, because of this lack of information, I dont believe it would be possible to create a good model that would be able to sucessfuly predict how many downloads an app will get in the appstore.
+
+Because of how the dataset is structured, I reckon that I would be able to get more and better insights if I actually created a better dataset by datamining it myself, and analyzing it. This could be an interesting idea for future projects, and another one would be to just try analyzing more apps in general, not just from the google play store.
